@@ -11,10 +11,12 @@ PlasmoidItem {
 
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
 
-    width: 448
-    height: 1072
-    Layout.minimumWidth: 330
-    Layout.minimumHeight: 860
+    width: 450
+    height: 900
+    Layout.minimumWidth: 450
+    Layout.minimumHeight: 900
+    Layout.maximumWidth: 450
+    Layout.maximumHeight: 900
     readonly property real hostsColumnSpacing: 18
     readonly property real hostsColumnWidth: Math.max(
         0, (width - 14 * 2 - hostsColumnSpacing * 2) / 3
@@ -86,7 +88,10 @@ PlasmoidItem {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 14
+        anchors.leftMargin: 14
+        anchors.rightMargin: 14
+        anchors.topMargin: 14
+        anchors.bottomMargin: 14
         spacing: 9
 
         RowLayout {
@@ -432,7 +437,8 @@ PlasmoidItem {
                         color: Kirigami.Theme.textColor
                         font.family: "monospace"
                         font.pixelSize: 11
-                        horizontalAlignment: Text.AlignHCenter
+                        Layout.preferredWidth: 56
+                        horizontalAlignment: Text.AlignLeft
                         elide: Text.ElideRight
                     }
 
@@ -1143,7 +1149,7 @@ PlasmoidItem {
                         { label: "rel-phone", status: "host_relphn_status" },
                         { label: "m4wrt", status: "host_m4wrt_status" },
                         { label: "bsmp1-rean", status: "host_bsmp1-reanzal_status" },
-                        { label: "m4-phone", status: "host_m4phn_status" },
+                        { label: "m4phone", status: "host_m4phn_status" },
                     ]
 
                     delegate: RowLayout {

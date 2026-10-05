@@ -36,10 +36,11 @@ run `plasmashell --replace` from Konsole or KRunner, or log out and back in.
 ## Data
 
 The widget reads CPU, memory, and swap sensors through Plasma's System Monitor
-sensor API. `contents/code/collector.py` reads `/tmp/conky-external-vars` and
-collects load, uptime, filesystem usage, network rates, battery status, and top
-CPU/memory processes. Set `CONKY_EXTERNAL_VARS` in the Plasma session
-environment to use a different directory.
+sensor API. `contents/code/collector.py` reads hwmon/GPU sensors, host
+availability (ping) and update counts directly, and collects load, uptime,
+filesystem usage, network rates, battery status, and top
+CPU/memory processes. Host checks run in background workers and are cached in
+`/tmp/systemdashboard-hosts.json`.
 
 The network section currently follows the interface names from the Conky file:
 `wwan0`, `wlp0s20f3`, and `eth0`.

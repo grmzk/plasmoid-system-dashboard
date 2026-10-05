@@ -1,12 +1,34 @@
 import json
 import os
 import subprocess
+import sys
 import time
 from pathlib import Path
 
-EXTERNAL_VARIABLES = Path(
-    os.environ.get("CONKY_EXTERNAL_VARS", "/tmp/conky-external-vars")
-)
+HOSTS_STATE = Path("/tmp/systemdashboard-hosts.json")
+GPU_MODEL_STATE = Path("/tmp/systemdashboard-gpu-model.txt")
+HOSTS = {
+    "m4vps-msk": "msk.m4vps.ru",
+    "m4vps-de": "de.m4vps.ru",
+    "m4wrt": "192.168.254.11",
+    "bsmp1-ord": "192.168.254.41",
+    "bsmp1-pit": "192.168.255.6",
+    "bsmp1-ad": "192.168.255.5",
+    "bsmp1-reanzal": "192.168.255.7",
+    "fampc": "192.168.254.3",
+    "relnb": "192.168.254.4",
+    "relphn": "192.168.253.22",
+    "m4phn": "192.168.253.21",
+}
+HOSTS_UPDATE = ("m4vps-msk", "m4vps-de", "famnb")
+HOSTS_STATUS_INTERVAL = 30
+HOSTS_UPDATE_INTERVAL = 300
+CPU_HWMON = "/sys/devices/platform/coretemp.0/hwmon/hwmon*"
+CPU_FAN_HWMON = "/sys/devices/platform/thinkpad_hwmon/hwmon/hwmon*"
+GPU_HWMON = "/sys/class/drm/card0/device/hwmon/hwmon*"
+GPU_DEVICE = Path("/sys/class/drm/card0/device")
+NVME_HWMON = "/sys/block/nvme0n1/device/hwmon*"
+MAX_FAN_RPM = 3989
 NETWORK_STATE = Path("/tmp/systemdashboard-network.json")
 NVME_STATE = Path("/tmp/systemdashboard-nvme.json")
 MOUNT_POINTS = ("/", "/var", "/home", "/tmp")
@@ -21,21 +43,265 @@ IW_COMMAND = next(
 )
 
 
-def read_external_variables() -> dict[str, str]:
-    if not EXTERNAL_VARIABLES.is_dir():
+def first_glob(pattern: str) -> Path | None:
+    matches = sorted(Path("/").glob(pattern.lstrip("/")))
+    return matches[0] if matches else None
+
+
+def read_int(path: Path) -> int | None:
+    try:
+        return int(path.read_text(encoding="utf-8").strip())
+    except OSError, ValueError:
+        return None
+
+
+def read_label(path: Path) -> str:
+    try:
+        label = path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+    return label.lower().replace(" ", "")
+
+
+def read_fan(pattern: str, name: str, variables: dict[str, str]) -> None:
+    hwmon = first_glob(pattern)
+    rpm = read_int(hwmon / "fan1_input") if hwmon else None
+    variables[name] = f"{rpm * 100 // MAX_FAN_RPM}%" if rpm is not None else "---"
+
+
+def read_hwmon_sensors(
+    pattern: str,
+    sensors: range,
+    prefix: str,
+    kind: str,
+    suffix: str,
+    convert,
+    variables: dict[str, str],
+) -> None:
+    hwmon = first_glob(pattern)
+    if hwmon is None:
+        return
+    for sensor in sensors:
+        label = read_label(hwmon / f"{kind}{sensor}_label")
+        if not label:
+            continue
+        value = read_int(hwmon / f"{kind}{sensor}_{suffix}")
+        variables[f"{prefix}_{label}"] = convert(value) if value is not None else "---"
+
+
+def read_temperatures(
+    pattern: str, sensors: range, prefix: str, variables: dict[str, str]
+) -> None:
+    read_hwmon_sensors(
+        pattern,
+        sensors,
+        prefix,
+        "temp",
+        "input",
+        lambda value: f"+{value // 1000}°C",
+        variables,
+    )
+
+
+def read_gpu_model() -> str:
+    try:
+        return GPU_MODEL_STATE.read_text(encoding="utf-8").strip()
+    except OSError:
+        pass
+    try:
+        result = subprocess.run(
+            ["glxinfo"],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=5,
+        )
+    except OSError, subprocess.TimeoutExpired:
+        return "GPU model info was not found!"
+    model = ""
+    for line in result.stdout.splitlines():
+        if "Device:" in line:
+            model = line.split(":", maxsplit=1)[1].strip()
+            # Drop the trailing "(...) (...)" groups.
+            model = model.rsplit(" (", maxsplit=2)[0]
+            break
+    if not model:
+        return "GPU model info was not found!"
+    try:
+        GPU_MODEL_STATE.write_text(model, encoding="utf-8")
+    except OSError:
+        pass
+    return model
+
+
+def read_gpu_variables(variables: dict[str, str]) -> None:
+    variables["gpu_model"] = read_gpu_model()
+    read_fan(GPU_HWMON, "gpu_fan", variables)
+    read_temperatures(GPU_HWMON, range(1, 4), "gpu_temp", variables)
+
+    busy = read_int(GPU_DEVICE / "gpu_busy_percent")
+    used = read_int(GPU_DEVICE / "mem_info_vram_used")
+    total = read_int(GPU_DEVICE / "mem_info_vram_total")
+    mib = 1024 * 1024
+    variables["gpu_busy_percent"] = f"{busy}%" if busy is not None else "---"
+    variables["gpu_vram_used"] = f"{used // mib}MiB" if used is not None else "---"
+    variables["gpu_vram_total"] = f"{total // mib}MiB" if total is not None else "---"
+    variables["gpu_vram_used_percent"] = (
+        f"{used * 100 // total}%" if used is not None and total else "---"
+    )
+    read_hwmon_sensors(
+        GPU_HWMON,
+        range(1, 3),
+        "gpu_freq",
+        "freq",
+        "input",
+        lambda value: f"{value // 1_000_000}MHz",
+        variables,
+    )
+    read_hwmon_sensors(
+        GPU_HWMON,
+        range(1, 2),
+        "gpu_power",
+        "power",
+        "average",
+        lambda value: f"{value // 1_000_000}.00W",
+        variables,
+    )
+
+
+def read_hosts_state() -> dict:
+    try:
+        return json.loads(HOSTS_STATE.read_text(encoding="utf-8"))
+    except OSError, json.JSONDecodeError:
         return {}
-    return {
-        path.name: path.read_text(encoding="utf-8", errors="replace").strip()
-        for path in EXTERNAL_VARIABLES.iterdir()
-        if path.is_file()
-    }
+
+
+def write_hosts_state(state: dict) -> None:
+    temporary = HOSTS_STATE.with_suffix(".tmp")
+    try:
+        temporary.write_text(json.dumps(state), encoding="utf-8")
+        temporary.replace(HOSTS_STATE)
+    except OSError:
+        pass
+
+
+def refresh_hosts_status() -> None:
+    status = {}
+    for name, address in HOSTS.items():
+        try:
+            result = subprocess.run(
+                ["ping", "-c", "1", "-W", "2", address],
+                capture_output=True,
+                check=False,
+                timeout=5,
+            )
+            status[name] = "on" if result.returncode == 0 else "off"
+        except OSError, subprocess.TimeoutExpired:
+            status[name] = "off"
+    state = read_hosts_state()
+    state["status"] = status
+    state["status_time"] = time.time()
+    write_hosts_state(state)
+
+
+def refresh_hosts_updates() -> None:
+    updates = {}
+    try:
+        result = subprocess.run(
+            ["apt-get", "-s", "dist-upgrade"],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=60,
+        )
+        ignored = (" libre2_11 ", " libtommath ", " libtomcrypt ")
+        updates["m4nb"] = str(
+            sum(
+                1
+                for line in result.stdout.splitlines()
+                if line.startswith("Inst ")
+                and not any(item in line for item in ignored)
+            )
+        )
+    except OSError, subprocess.TimeoutExpired:
+        updates["m4nb"] = "-"
+
+    for host in HOSTS_UPDATE:
+        try:
+            result = subprocess.run(
+                ["ssh", "m4vps-msk", f"cat /tmp/updpkgs_{host}"],
+                capture_output=True,
+                check=False,
+                text=True,
+                timeout=20,
+            )
+            value = result.stdout.strip()
+            updates[host] = value if result.returncode == 0 else "-"
+        except OSError, subprocess.TimeoutExpired:
+            updates[host] = "-"
+    state = read_hosts_state()
+    state["updates"] = updates
+    state["updates_time"] = time.time()
+    write_hosts_state(state)
+
+
+def spawn_refresh(option: str) -> None:
+    try:
+        subprocess.Popen(
+            [sys.executable, os.path.abspath(__file__), option],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except OSError:
+        pass
+
+
+def read_hosts_variables(variables: dict[str, str]) -> None:
+    # Slow checks run in detached workers; results are cached on disk.
+    state = read_hosts_state()
+    now = time.time()
+    # Stamp before spawning so concurrent runs don't start duplicates.
+    stale = False
+    if now - state.get("status_time", 0) > HOSTS_STATUS_INTERVAL:
+        state["status_time"] = now
+        stale = True
+        spawn_status = True
+    else:
+        spawn_status = False
+    if now - state.get("updates_time", 0) > HOSTS_UPDATE_INTERVAL:
+        state["updates_time"] = now
+        stale = True
+        spawn_updates = True
+    else:
+        spawn_updates = False
+    if stale:
+        write_hosts_state(state)
+    if spawn_status:
+        spawn_refresh("--refresh-hosts-status")
+    if spawn_updates:
+        spawn_refresh("--refresh-hosts-updates")
+
+    for name in HOSTS:
+        variables[f"host_{name}_status"] = state.get("status", {}).get(name, "off")
+    for name, value in state.get("updates", {}).items():
+        variables[f"host_{name}_updates"] = value
+
+
+def read_external_variables() -> dict[str, str]:
+    variables: dict[str, str] = {}
+    read_fan(CPU_FAN_HWMON, "cpu_fan", variables)
+    read_temperatures(CPU_HWMON, range(1, 6), "cpu_temp", variables)
+    read_gpu_variables(variables)
+    read_temperatures(NVME_HWMON, range(1, 2), "nvme_temp", variables)
+    read_hosts_variables(variables)
+    return variables
 
 
 def read_gpu_max_frequency() -> str:
     frequencies = []
-    for path in sorted(
-        Path("/sys/class/drm").glob("card*/device/pp_dpm_sclk")
-    ):
+    for path in sorted(Path("/sys/class/drm").glob("card*/device/pp_dpm_sclk")):
         try:
             lines = path.read_text(encoding="utf-8").splitlines()
         except OSError:
@@ -63,9 +329,7 @@ def read_network_route() -> dict[str, str]:
     except OSError, subprocess.TimeoutExpired:
         return {"ip": "—", "gateway": "—"}
 
-    routes = [
-        line.split() for line in result.stdout.splitlines() if line.strip()
-    ]
+    routes = [line.split() for line in result.stdout.splitlines() if line.strip()]
     if result.returncode != 0 or not routes:
         return {"ip": "—", "gateway": "—"}
 
@@ -95,9 +359,9 @@ def read_network_route() -> dict[str, str]:
             for line in address_result.stdout.splitlines():
                 address_fields = line.split()
                 if "inet" in address_fields:
-                    ip_address = address_fields[
-                        address_fields.index("inet") + 1
-                    ].split("/", maxsplit=1)[0]
+                    ip_address = address_fields[address_fields.index("inet") + 1].split(
+                        "/", maxsplit=1
+                    )[0]
                     break
 
     return {
@@ -119,9 +383,7 @@ def read_nvme_rates() -> dict[str, float]:
         try:
             stats = [
                 int(value)
-                for value in (device / "stat")
-                .read_text(encoding="utf-8")
-                .split()
+                for value in (device / "stat").read_text(encoding="utf-8").split()
             ]
         except OSError, ValueError:
             continue
@@ -140,8 +402,7 @@ def read_nvme_rates() -> dict[str, float]:
         "write_rate": (
             max(
                 0,
-                written_sectors
-                - previous.get("written_sectors", written_sectors),
+                written_sectors - previous.get("written_sectors", written_sectors),
             )
             * 512
             / elapsed
@@ -180,9 +441,7 @@ def read_interface_state(name: str) -> str:
         return "up" if carrier == "1" else "down"
 
     try:
-        flags = int(
-            (interface / "flags").read_text(encoding="utf-8").strip(), 16
-        )
+        flags = int((interface / "flags").read_text(encoding="utf-8").strip(), 16)
     except OSError, ValueError:
         return "down"
     return "up" if flags & 0x1 else "down"
@@ -377,9 +636,7 @@ def read_network_stats() -> list[dict[str, int | float | str | None]]:
     interfaces = []
     current = {}
     try:
-        lines = (
-            Path("/proc/net/dev").read_text(encoding="utf-8").splitlines()[2:]
-        )
+        lines = Path("/proc/net/dev").read_text(encoding="utf-8").splitlines()[2:]
     except OSError:
         lines = []
 
@@ -407,9 +664,7 @@ def read_network_stats() -> list[dict[str, int | float | str | None]]:
                 "state": interface_state,
                 "signal_percent": signal_percent,
                 "technology": technology,
-                "receive_rate": max(
-                    0, received - old.get("received", received)
-                )
+                "receive_rate": max(0, received - old.get("received", received))
                 / elapsed,
                 "transmit_rate": max(
                     0, transmitted - old.get("transmitted", transmitted)
@@ -418,17 +673,13 @@ def read_network_stats() -> list[dict[str, int | float | str | None]]:
             }
         )
 
-    state = {
-        name: {**counters, "time": now} for name, counters in current.items()
-    }
+    state = {name: {**counters, "time": now} for name, counters in current.items()}
     try:
         NETWORK_STATE.write_text(json.dumps(state), encoding="utf-8")
     except OSError:
         pass
     interface_order = {"eth0": 0, "wlp0s20f3": 1, "wwan0": 2}
-    interfaces.sort(
-        key=lambda interface: interface_order.get(interface["name"], 1)
-    )
+    interfaces.sort(key=lambda interface: interface_order.get(interface["name"], 1))
     return interfaces
 
 
@@ -446,9 +697,7 @@ def read_filesystems() -> list[dict[str, int | str]]:
                 "mount": mount_point,
                 "used": total - available,
                 "total": total,
-                "percent": (
-                    round((total - available) * 100 / total) if total else 0
-                ),
+                "percent": (round((total - available) * 100 / total) if total else 0),
             }
         )
     return filesystems
@@ -494,9 +743,7 @@ def read_battery(battery: Path) -> dict[str, float | int | str | None]:
         except OSError, ValueError:
             return 0
 
-    capacity = (
-        read_number("capacity") if (battery / "capacity").exists() else None
-    )
+    capacity = read_number("capacity") if (battery / "capacity").exists() else None
     energy = read_number("energy_now")
     energy_full = read_number("energy_full")
     energy_full_design = read_number("energy_full_design")
@@ -555,9 +802,7 @@ def read_battery(battery: Path) -> dict[str, float | int | str | None]:
                 key, separator, value = line.strip().partition(":")
                 if key == "energy-rate" and separator:
                     try:
-                        upower_rate = float(
-                            value.strip().split()[0].replace(",", ".")
-                        )
+                        upower_rate = float(value.strip().split()[0].replace(",", "."))
                     except ValueError, IndexError:
                         pass
                     break
@@ -573,9 +818,7 @@ def read_battery(battery: Path) -> dict[str, float | int | str | None]:
     )
     if energy_full:
         level, full = energy, energy_full
-        rate = power or (
-            round(power_w * 1_000_000) if power_w is not None else 0
-        )
+        rate = power or (round(power_w * 1_000_000) if power_w is not None else 0)
     elif charge_full:
         level, full = charge, charge_full
         rate = current or (
@@ -607,9 +850,7 @@ def read_battery(battery: Path) -> dict[str, float | int | str | None]:
         "status": status,
         "power_w": round(power_w, 1) if power_w is not None else None,
         "health": (
-            round(energy_full * 100 / energy_full_design)
-            if energy_full_design
-            else 0
+            round(energy_full * 100 / energy_full_design) if energy_full_design else 0
         ),
         "minutes_remaining": int(remaining * 60 / rate) if rate else 0,
     }
@@ -630,9 +871,7 @@ def collect() -> dict:
     except OSError, ValueError, IndexError:
         uptime_seconds = 0
     try:
-        load_average = (
-            Path("/proc/loadavg").read_text(encoding="utf-8").split()[:3]
-        )
+        load_average = Path("/proc/loadavg").read_text(encoding="utf-8").split()[:3]
     except OSError:
         load_average = []
 
@@ -662,4 +901,10 @@ def collect() -> dict:
 
 
 if __name__ == "__main__":
+    if "--refresh-hosts-status" in sys.argv:
+        refresh_hosts_status()
+        sys.exit()
+    if "--refresh-hosts-updates" in sys.argv:
+        refresh_hosts_updates()
+        sys.exit()
     print(json.dumps(collect(), ensure_ascii=False, separators=(",", ":")))
