@@ -7,6 +7,8 @@ from pathlib import Path
 
 HOSTS_STATE = Path("/tmp/systemdashboard-hosts.json")
 GPU_MODEL_STATE = Path("/tmp/systemdashboard-gpu-model.txt")
+SYSTEM_VERSION_STATE = Path("/tmp/systemdashboard-versions.json")
+SYSTEM_VERSION_INTERVAL = 60
 HOSTS = {
     "m4vps-msk": "msk.m4vps.ru",
     "m4vps-de": "de.m4vps.ru",
@@ -61,6 +63,67 @@ def read_label(path: Path) -> str:
     except OSError:
         return ""
     return label.lower().replace(" ", "")
+
+
+def read_system_versions() -> dict[str, str]:
+    now = time.time()
+    try:
+        state = json.loads(SYSTEM_VERSION_STATE.read_text(encoding="utf-8"))
+    except OSError, json.JSONDecodeError:
+        state = {}
+    if now - state.get("time", 0) < SYSTEM_VERSION_INTERVAL and "description" in state:
+        return {
+            "kernel": state.get("kernel", "—"),
+            "plasma": state.get("plasma", "—"),
+            "description": state.get("description", "—"),
+        }
+
+    kernel = os.uname().release
+    plasma = "—"
+    description = "—"
+    try:
+        result = subprocess.run(
+            ["plasmashell", "--version"],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            for line in result.stdout.splitlines():
+                fields = line.split()
+                if fields and fields[0] == "plasmashell" and len(fields) > 1:
+                    plasma = fields[-1]
+                    break
+    except OSError, subprocess.TimeoutExpired:
+        pass
+
+    try:
+        result = subprocess.run(
+            ["lsb_release", "--description", "--short"],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            description = result.stdout.strip().strip('"') or "—"
+    except OSError, subprocess.TimeoutExpired:
+        pass
+
+    state = {
+        "time": now,
+        "kernel": kernel,
+        "plasma": plasma,
+        "description": description,
+    }
+    temporary = SYSTEM_VERSION_STATE.with_suffix(".tmp")
+    try:
+        temporary.write_text(json.dumps(state), encoding="utf-8")
+        temporary.replace(SYSTEM_VERSION_STATE)
+    except OSError:
+        pass
+    return {"kernel": kernel, "plasma": plasma, "description": description}
 
 
 def read_fan(pattern: str, name: str, variables: dict[str, str]) -> None:
@@ -886,6 +949,7 @@ def collect() -> dict:
 
     return {
         "external": external,
+        "versions": read_system_versions(),
         "cpu_count": cpu_count,
         "uptime_seconds": int(uptime_seconds),
         "load_average": load_average,

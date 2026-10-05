@@ -189,6 +189,48 @@ PlasmoidItem {
                 Layout.fillWidth: true
 
                 Text {
+                    text: "Linux "
+                    color: Kirigami.Theme.textColor
+                    font.bold: true
+                    font.pixelSize: 13
+                }
+
+                Text {
+                    text: root.snapshot.versions?.kernel || "—"
+                    color: Kirigami.Theme.textColor
+                    font.family: "monospace"
+                    font.pixelSize: 13
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Text {
+                    text: "KDE Plasma "
+                    color: Kirigami.Theme.textColor
+                    font.bold: true
+                    font.pixelSize: 13
+                }
+
+                Text {
+                    text: root.snapshot.versions?.plasma || "—"
+                    color: Kirigami.Theme.textColor
+                    font.family: "monospace"
+                    font.pixelSize: 13
+                    horizontalAlignment: Text.AlignRight
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                height: 1
+                color: Kirigami.Theme.textColor
+                opacity: 0.35
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+
+                Text {
                     text: "CPU"
                     color: Kirigami.Theme.textColor
                     font.bold: true
