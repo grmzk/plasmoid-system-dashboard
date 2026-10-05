@@ -123,7 +123,9 @@ PlasmoidItem {
                 Text {
                     id: clock
                     color: Kirigami.Theme.textColor
-                    font.family: "monospace"
+                    font.family: Qt.fontFamilies().indexOf("Digital Dismay") >= 0
+                        ? "Digital Dismay"
+                        : "monospace"
                     font.pixelSize: 28
                     Layout.fillWidth: true
                     horizontalAlignment: Text.AlignRight
@@ -151,11 +153,21 @@ PlasmoidItem {
                         font.pixelSize: 11
                     }
 
+                    TextMetrics {
+                        id: uptimeMetrics
+                        font.family: "monospace"
+                        font.pixelSize: 11
+                        text: "99d 23h 59m 59s"
+                    }
+
                     Text {
                         text: root.formatUptime(root.snapshot.uptime_seconds || 0)
                         color: Kirigami.Theme.textColor
                         font.family: "monospace"
                         font.pixelSize: 11
+                        Layout.minimumWidth: uptimeMetrics.width
+                        Layout.preferredWidth: uptimeMetrics.width
+                        Layout.maximumWidth: uptimeMetrics.width
                         horizontalAlignment: Text.AlignRight
                     }
                 }
@@ -970,7 +982,9 @@ PlasmoidItem {
 
                     Text {
                         text: modelData.name
-                        color: Kirigami.Theme.textColor
+                        color: modelData.state === "up"
+                            ? Kirigami.Theme.textColor
+                            : Kirigami.Theme.disabledTextColor
                         font.bold: true
                         font.family: "monospace"
                         font.pixelSize: 11
@@ -1017,8 +1031,10 @@ PlasmoidItem {
                                 && modelData.signal_percent !== null
                                 && modelData.signal_percent !== undefined
                                 ? modelData.signal_percent + "%"
-                                : ""
-                            color: Kirigami.Theme.textColor
+                                : "---"
+                            color: modelData.state === "up"
+                                ? Kirigami.Theme.textColor
+                                : Kirigami.Theme.disabledTextColor
                             font.family: "monospace"
                             font.pixelSize: 11
                             Layout.minimumWidth: 27
@@ -1039,8 +1055,10 @@ PlasmoidItem {
                             && modelData.technology
                             && modelData.technology !== "—"
                             ? modelData.technology
-                            : ""
-                        color: Kirigami.Theme.textColor
+                            : "---"
+                        color: modelData.state === "up"
+                            ? Kirigami.Theme.textColor
+                            : Kirigami.Theme.disabledTextColor
                         font.family: "monospace"
                         font.pixelSize: 11
                         Layout.minimumWidth: 34
