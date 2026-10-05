@@ -1,0 +1,18 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "Local user"
+            }
+        ],
+        "Category": "System Information",
+        "Description": "Desktop system dashboard inspired by Conky",
+        "Icon": "utilities-system-monitor",
+        "Id": "ru.local.systemdashboard",
+        "Name": "System Dashboard",
+        "Version": "0.1.0",
+        "License": "MIT"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
