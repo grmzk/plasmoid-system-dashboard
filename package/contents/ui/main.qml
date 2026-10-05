@@ -12,7 +12,7 @@ PlasmoidItem {
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
 
     width: 448
-    height: 960
+    height: 1072
     Layout.minimumWidth: 330
     Layout.minimumHeight: 860
     readonly property real hostsColumnSpacing: 18
@@ -243,14 +243,19 @@ PlasmoidItem {
                 Layout.fillWidth: true
                 height: 5
                 radius: 2
-                color: Kirigami.Theme.textColor
-                opacity: 0.25
+                color: Qt.rgba(
+                    Kirigami.Theme.textColor.r,
+                    Kirigami.Theme.textColor.g,
+                    Kirigami.Theme.textColor.b,
+                    0.25
+                )
 
                 Rectangle {
                     width: parent.width * (cpuSensor.value || 0) / 100
                     height: parent.height
                     radius: parent.radius
                     color: Kirigami.Theme.highlightColor
+                    opacity: 0.9
                 }
             }
 
@@ -301,14 +306,19 @@ PlasmoidItem {
                             Layout.fillWidth: true
                             height: 3
                             radius: 1
-                            color: Kirigami.Theme.textColor
-                            opacity: 0.25
+                            color: Qt.rgba(
+                                Kirigami.Theme.textColor.r,
+                                Kirigami.Theme.textColor.g,
+                                Kirigami.Theme.textColor.b,
+                                0.25
+                            )
 
                             Rectangle {
                                 width: parent.width * (coreSensor.value || 0) / 100
                                 height: parent.height
                                 radius: parent.radius
                                 color: Kirigami.Theme.highlightColor
+                                opacity: 0.9
                             }
                         }
                     }
@@ -435,7 +445,7 @@ PlasmoidItem {
                     font.family: "monospace"
                     font.bold: true
                     font.pixelSize: 11
-                    Layout.preferredWidth: 180
+                    Layout.preferredWidth: 220
                     horizontalAlignment: Text.AlignRight
                     elide: Text.ElideLeft
                 }
@@ -1350,6 +1360,9 @@ PlasmoidItem {
                 readonly property real metricColumnWidth: Math.max(
                     0, (root.width - 28 - 54 - spacing * 3) / 3
                 )
+                readonly property real batteryEtaColumnWidth: Math.max(
+                    0, metricColumnWidth - 21
+                )
 
                 Text {
                     text: "BATTERY"
@@ -1360,6 +1373,8 @@ PlasmoidItem {
                     Layout.preferredWidth: 54
                     Layout.maximumWidth: 54
                 }
+
+                Item { Layout.preferredWidth: 21 }
 
                 RowLayout {
                     Layout.minimumWidth: batteryRow.metricColumnWidth
@@ -1418,9 +1433,9 @@ PlasmoidItem {
                     color: Kirigami.Theme.textColor
                     font.family: "monospace"
                     font.pixelSize: 11
-                    Layout.minimumWidth: batteryRow.metricColumnWidth
-                    Layout.preferredWidth: batteryRow.metricColumnWidth
-                    Layout.maximumWidth: batteryRow.metricColumnWidth
+                    Layout.minimumWidth: batteryRow.batteryEtaColumnWidth
+                    Layout.preferredWidth: batteryRow.batteryEtaColumnWidth
+                    Layout.maximumWidth: batteryRow.batteryEtaColumnWidth
                     horizontalAlignment: Text.AlignRight
                     elide: Text.ElideLeft
                 }
@@ -1474,9 +1489,9 @@ PlasmoidItem {
                         color: Kirigami.Theme.textColor
                         font.family: "monospace"
                         font.pixelSize: 11
-                        Layout.minimumWidth: 62
-                        Layout.preferredWidth: 62
-                        Layout.maximumWidth: 62
+                        Layout.minimumWidth: 52
+                        Layout.preferredWidth: 52
+                        Layout.maximumWidth: 52
                         horizontalAlignment: Text.AlignRight
                     }
 
@@ -1487,9 +1502,9 @@ PlasmoidItem {
                     }
 
                     RowLayout {
-                        Layout.minimumWidth: 66
-                        Layout.preferredWidth: 66
-                        Layout.maximumWidth: 66
+                        Layout.minimumWidth: 58
+                        Layout.preferredWidth: 58
+                        Layout.maximumWidth: 58
                         spacing: 2
 
                         Text {
@@ -1498,7 +1513,7 @@ PlasmoidItem {
                             font.bold: true
                             font.family: "monospace"
                             font.pixelSize: 11
-                            Layout.preferredWidth: 40
+                            Layout.preferredWidth: 32
                             horizontalAlignment: Text.AlignRight
                         }
 
@@ -1532,9 +1547,9 @@ PlasmoidItem {
                         color: Kirigami.Theme.highlightColor
                         font.family: "monospace"
                         font.pixelSize: 11
-                        Layout.minimumWidth: 24
-                        Layout.preferredWidth: 24
-                        Layout.maximumWidth: 24
+                        Layout.minimumWidth: 42
+                        Layout.preferredWidth: 42
+                        Layout.maximumWidth: 42
                         Layout.alignment: Qt.AlignRight
                         horizontalAlignment: Text.AlignRight
                     }
@@ -1661,14 +1676,19 @@ PlasmoidItem {
         Layout.maximumWidth: Math.max(60, Math.min(188, (root.width - 298) * 1.25))
         height: 5
         radius: 2
-        color: Kirigami.Theme.textColor
-        opacity: 0.25
+        color: Qt.rgba(
+            Kirigami.Theme.textColor.r,
+            Kirigami.Theme.textColor.g,
+            Kirigami.Theme.textColor.b,
+            0.25
+        )
 
         Rectangle {
             width: parent.width * progressTrack.ratio
             height: parent.height
             radius: parent.radius
             color: Kirigami.Theme.highlightColor
+            opacity: 0.9
         }
     }
 

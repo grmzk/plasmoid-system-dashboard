@@ -7,7 +7,7 @@ Native Plasma 6 desktop widget for the Conky dashboard in this workspace.
 From the workspace root:
 
 ```sh
-kpackagetool6 --type Plasma/Applet --install plasmoid/package
+kpackagetool6 --type Plasma/Applet --install ./package
 ```
 
 For a windowed preview:
@@ -25,7 +25,7 @@ default size is 448 x 960 logical pixels.
 After editing the package, close the preview and run:
 
 ```sh
-kpackagetool6 --type Plasma/Applet --upgrade plasmoid/package
+kpackagetool6 --type Plasma/Applet --upgrade ./package
 ```
 
 If an already-added desktop widget still shows the previous version, reload
