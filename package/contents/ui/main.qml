@@ -34,7 +34,7 @@ PlasmoidItem {
             Kirigami.Theme.backgroundColor.r,
             Kirigami.Theme.backgroundColor.g,
             Kirigami.Theme.backgroundColor.b,
-            0.8
+            Plasmoid.configuration.backgroundOpacity / 100
         )
     }
 
@@ -118,7 +118,8 @@ PlasmoidItem {
 
             ColumnLayout {
                 spacing: 0
-                Layout.preferredWidth: 140
+                Layout.minimumWidth: 140
+                Layout.preferredWidth: Math.max(140, clock.implicitWidth)
 
                 Text {
                     id: clock
@@ -126,8 +127,11 @@ PlasmoidItem {
                     font.family: Qt.fontFamilies().indexOf("Digital Dismay") >= 0
                         ? "Digital Dismay"
                         : "monospace"
-                    font.pixelSize: 28
+                    font.pixelSize: Qt.fontFamilies().indexOf("Digital Dismay") >= 0
+                        ? 42
+                        : 30
                     Layout.fillWidth: true
+                    Layout.minimumWidth: implicitWidth
                     horizontalAlignment: Text.AlignRight
                     text: Qt.formatTime(new Date(), "HH:mm:ss")
 
