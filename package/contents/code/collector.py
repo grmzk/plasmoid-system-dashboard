@@ -271,11 +271,11 @@ def refresh_hosts_updates() -> None:
     updates = {}
     try:
         result = subprocess.run(
-            ["apt-get", "-s", "dist-upgrade"],
+            ["sudo", "apt-get", "dist-upgrade", "--just-print"],
             capture_output=True,
             check=False,
             text=True,
-            timeout=60,
+            timeout=300,
         )
         ignored = (" libre2_11 ", " libtommath ", " libtomcrypt ")
         updates["m4nb"] = str(
@@ -296,7 +296,7 @@ def refresh_hosts_updates() -> None:
                 capture_output=True,
                 check=False,
                 text=True,
-                timeout=20,
+                timeout=300,
             )
             value = result.stdout.strip()
             updates[host] = value if result.returncode == 0 else "-"

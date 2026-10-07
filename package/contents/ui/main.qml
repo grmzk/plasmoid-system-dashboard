@@ -1262,7 +1262,7 @@ PlasmoidItem {
                             color: Kirigami.Theme.textColor
                             font.family: "monospace"
                             font.pixelSize: 11
-                            Layout.preferredWidth: 28
+                            Layout.preferredWidth: 34
                             horizontalAlignment: Text.AlignLeft
                             elide: Text.ElideRight
                         }
